@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="Chrysalis PAT Simulator",
     page_icon="🦋",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # --- API Configuration ---
@@ -61,6 +61,11 @@ def show_login_screen():
             st.rerun()
 
 def show_lobby_screen():
+    with st.sidebar:
+        st.image(logo, use_container_width=True)
+        st.header("Status")
+        st.info("No active session. Please select a scenario.")
+    
     st.title("Scenario Lobby")
     st.info("Welcome! Please select a scenario to begin your training.")
     st.divider()
@@ -96,25 +101,41 @@ def show_lobby_screen():
                 st.write(data["description"])
                 if st.button(f"Begin with {client_name}", key=client_name, use_container_width=True):
                     st.session_state.scenario_name = f"{client_name}: {data['title']}"
-                    # Start chat with the persona-defining system prompt
                     st.session_state.chat = model.start_chat(history=[{'role': 'user', 'parts': [data['system_prompt']]}])
-                    # Get the AI's opening line
                     response = st.session_state.chat.send_message("Please give me your opening line based on your persona.")
                     st.session_state.messages = [{"role": "model", "parts": [response.text]}]
                     st.session_state.current_screen = 'dojo'
                     st.rerun()
 
 def show_dojo_screen():
-    st.success(f"**Active Scenario**: {st.session_state.scenario_name}")
+    with st.sidebar:
+        st.image(logo, use_container_width=True)
+        st.header("Session Status")
+        st.info(f"**Active Scenario**:\n{st.session_state.scenario_name}")
 
+    st.title("Training Dojo")
+    
     # Display chat messages
     for message in st.session_state.messages:
         role = "assistant" if message['role'] == 'model' else message['role']
         with st.chat_message(role):
             st.markdown(message['parts'][0])
 
-    # Chat input for user
-    if prompt := st.chat_input("Your response..."):
+    # --- FIX: Input and Button Area ---
+    # Use columns to place the button next to the input field
+    input_col, button_col = st.columns([4, 1])
+
+    with input_col:
+        prompt = st.chat_input("Your response...", key="chat_input")
+
+    with button_col:
+        # A bit of vertical space to align the button
+        st.markdown("<div style='height: 38px;'></div>", unsafe_allow_html=True) 
+        if st.button("End Session", use_container_width=True, type="primary"):
+            st.session_state.current_screen = 'debrief'
+            st.rerun()
+
+    if prompt:
         st.session_state.messages.append({"role": "user", "parts": [prompt]})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -125,18 +146,16 @@ def show_dojo_screen():
                 st.markdown(response.text)
         st.session_state.messages.append({"role": "model", "parts": [response.text]})
         st.rerun()
-    
-    # "End Session" button container, placed after the chat input logic
-    st.container() # Acts as a spacer
-    if st.button("End Session & Begin Debrief", type="primary", use_container_width=True):
-        st.session_state.current_screen = 'debrief'
-        st.rerun()
 
 def show_debrief_screen():
+    with st.sidebar:
+        st.image(logo, use_container_width=True)
+        st.header("Status")
+        st.info("Debrief complete.")
+
     st.header("Debrief Report", divider="rainbow")
     st.info(f"Analysis for: **{st.session_state.scenario_name}**")
     
-    # Here you would add the debrief generation logic
     st.write("Debrief analysis will be displayed here.")
 
     with st.expander("Full Transcript"):
@@ -144,9 +163,8 @@ def show_debrief_screen():
             role = "Facilitator" if msg['role'] == 'user' else "Client"
             st.write(f"**{role}**: {msg['parts'][0]}")
 
-    if st.button("↩️ Return to Lobby"):
+    if st.button("↩️ Return to Lobby", use_container_width=True):
         st.session_state.current_screen = 'lobby'
-        # Reset session-specific state
         st.session_state.messages = []
         st.session_state.chat = None
         st.session_state.scenario_name = ""
@@ -155,11 +173,12 @@ def show_debrief_screen():
 # --- Main Application Router ---
 init_session_state()
 
-if st.session_state.current_screen == 'login':
+if not st.session_state.logged_in:
     show_login_screen()
-elif st.session_state.current_screen == 'lobby':
-    show_lobby_screen()
-elif st.session_state.current_screen == 'dojo':
-    show_dojo_screen()
-elif st.session_state.current_screen == 'debrief':
-    show_debrief_screen()
+else:
+    if st.session_state.current_screen == 'lobby':
+        show_lobby_screen()
+    elif st.session_state.current_screen == 'dojo':
+        show_dojo_screen()
+    elif st.session_state.current_screen == 'debrief':
+        show_debrief_screen()
