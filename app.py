@@ -1,12 +1,14 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
+import base64
+import os
 
 # --- Page Configuration ---
 st.set_page_config(
     page_title="Chrysalis PAT Simulator",
     page_icon="🦋",
-    layout="centered",
+    layout="wide", # Use wide layout for the lobby
     initial_sidebar_state="expanded"
 )
 
@@ -24,6 +26,15 @@ try:
 except FileNotFoundError:
     logo = None
 
+# --- Helper Function for Videos ---
+def get_video_b64(path: str):
+    """Reads a video file and returns its base64 encoded string."""
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        video_bytes = f.read()
+    return base64.b64encode(video_bytes).decode()
+
 # --- Session State Initialization ---
 if 'chat' not in st.session_state:
     st.session_state.chat = None
@@ -36,23 +47,23 @@ if 'messages' not in st.session_state:
 if 'scenario_name' not in st.session_state:
     st.session_state.scenario_name = ""
 
-
 # --- Debrief Function ---
 def generate_debrief_report(chat_history, scenario_name):
     st.header("Debrief Report", divider="rainbow")
     st.info(f"Analysis for: **{scenario_name}**")
-    
-    # This is a placeholder for the full debrief logic.
+
     st.write("Debrief generation would occur here.")
     with st.expander("Full Transcript"):
         for msg in chat_history:
             st.write(f"**{msg['role'].replace('model', 'Client').title()}**: {msg['parts'][0]}")
 
-    if st.button("↩️ Start a New Session"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+    if st.button("↩️ Return to Lobby"):
+        # Reset only session-specific state
+        st.session_state.scenario_active = False
+        st.session_state.show_debrief = False
+        st.session_state.messages = []
+        st.session_state.scenario_name = ""
         st.rerun()
-
 
 # --- Main Application ---
 
@@ -61,55 +72,95 @@ st.title("🦋 Chrysalis PAT Simulator")
 # --- Sidebar ---
 with st.sidebar:
     if logo:
-        st.image(logo, use_container_width=True) # Fix for deprecation warning
-    st.header("Settings")
+        st.image(logo, use_container_width=True)
+    st.header("Session Status")
 
-    if not st.session_state.scenario_active:
-        scenario_choice = st.selectbox(
-            "Choose a Client Scenario:",
-            ("Select...", "Pre-session Anxiety", "Post-session Integration"),
-            key="scenario_selector"
-        )
-        if scenario_choice != "Select..." and st.button(f"Begin Scenario"):
-            st.session_state.scenario_active = True
-            st.session_state.scenario_name = scenario_choice
-            st.session_state.chat = model.start_chat(history=[])
-            
-            initial_prompt = f"Begin the conversation for a '{scenario_choice}' scenario."
-            with st.spinner("Client is preparing..."):
-                response = st.session_state.chat.send_message(initial_prompt)
-                st.session_state.messages.append({"role": "model", "parts": [response.text]})
-            st.rerun()
-    else: # If a scenario IS active
+    if st.session_state.scenario_active:
         st.info(f"Scenario in progress:\n**{st.session_state.scenario_name}**")
         if st.button("End Session & Begin Debrief", type="primary"):
             st.session_state.show_debrief = True
             st.rerun()
+    else:
+        st.info("No active session. Please select a scenario from the lobby.")
 
 
-# --- Main Content ---
+# --- Main Content Router ---
 if st.session_state.show_debrief:
     generate_debrief_report(st.session_state.messages, st.session_state.scenario_name)
 
 elif st.session_state.scenario_active:
-    # Display chat messages from history
-    for message in st.session_state.messages:
-        role = "assistant" if message['role'] == 'model' else message['role']
-        with st.chat_message(role):
-            st.markdown(message['parts'][0])
+    # NOTE: Calling st.set_page_config again here is not allowed and causes errors.
+    # We will manage the layout with columns instead.
+    st.success(f"**Active Scenario**: {st.session_state.scenario_name}")
 
-    # Chat input for user
-    if prompt := st.chat_input("Your response..."):
-        st.session_state.messages.append({"role": "user", "parts": [prompt]})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # Use columns to create a centered-like experience for the chat
+    col1, col2, col3 = st.columns([1, 4, 1])
+    with col2:
+        # Display chat messages
+        for message in st.session_state.messages:
+            role = "assistant" if message['role'] == 'model' else message['role']
+            with st.chat_message(role):
+                st.markdown(message['parts'][0])
 
-        with st.chat_message("assistant"):
-            with st.spinner("Client is thinking..."):
-                response = st.session_state.chat.send_message(prompt)
-                st.markdown(response.text)
-        st.session_state.messages.append({"role": "model", "parts": [response.text]})
-        st.rerun()
+        # Chat input
+        if prompt := st.chat_input("Your response..."):
+            st.session_state.messages.append({"role": "user", "parts": [prompt]})
+            with st.chat_message("user"):
+                st.markdown(prompt)
 
-else:
-    st.info("Welcome! Please select a scenario from the sidebar to begin.")
+            with st.chat_message("assistant"):
+                with st.spinner("Client is thinking..."):
+                    response = st.session_state.chat.send_message(prompt)
+                    st.markdown(response.text)
+            st.session_state.messages.append({"role": "model", "parts": [response.text]})
+            st.rerun()
+
+else: # This is the LOBBY screen
+    st.info("Welcome! Please select a scenario to begin your training.")
+    st.divider()
+
+    scenarios = {
+        "David": {
+            "title": "Intense Experience (Dosing)",
+            "description": "David, a 50yo male, is 80min post-dose and wants to stop due to creepy/dark feelings.",
+            "video_path": "assets/scenario1-new-video.mp4",
+            "initial_prompt": "You are David, a client in a PAT dosing session. Begin by expressing that you feel overwhelmed and want the experience to stop."
+        },
+        "Alex": {
+            "title": "Integration Session - Touch",
+            "description": "Alex is in an integration session and feels embarrassed about requesting a hug yesterday.",
+            "video_path": "assets/scenario2a-new-video.mp4",
+            "initial_prompt": "You are Alex, in a PAT integration session. Begin by awkwardly mentioning you feel embarrassed about asking for a hug during yesterday's session."
+        },
+        "Bruce": {
+            "title": "Preparation - Expectations",
+            "description": "Bruce, a 55yo male, expects psychedelics to instantly 'cure' his lifelong depression.",
+            "video_path": "assets/scenario3c-new-video.mp4",
+            "initial_prompt": "You are Bruce, in a PAT preparation session. Begin by expressing extreme optimism that this one session will finally cure your depression."
+        }
+    }
+
+    cols = st.columns(len(scenarios))
+
+    for i, (client_name, data) in enumerate(scenarios.items()):
+        with cols[i]:
+            with st.container(border=True):
+                st.subheader(client_name)
+                st.caption(data["title"])
+
+                if os.path.exists(data["video_path"]):
+                    st.video(data["video_path"])
+                else:
+                    st.warning(f"Video not found: {data['video_path']}")
+
+                st.write(data["description"])
+
+                if st.button(f"Begin Scenario with {client_name}", key=f"begin_{client_name}", use_container_width=True):
+                    st.session_state.scenario_active = True
+                    st.session_state.scenario_name = f"{client_name}: {data['title']}"
+                    st.session_state.chat = model.start_chat(history=[])
+
+                    with st.spinner("Client is preparing..."):
+                        response = st.session_state.chat.send_message(data["initial_prompt"])
+                        st.session_state.messages.append({"role": "model", "parts": [response.text]})
+                    st.rerun()
