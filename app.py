@@ -5,15 +5,11 @@ import base64
 import os
 
 # --- Page Configuration ---
-# Use a variable to set the layout, so we can change it dynamically
-if 'layout' not in st.session_state:
-    st.session_state.layout = 'wide'
-
 st.set_page_config(
     page_title="Chrysalis PAT Simulator",
     page_icon="🦋",
-    layout=st.session_state.layout,
-    initial_sidebar_state="expanded"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # --- API Configuration ---
@@ -31,96 +27,91 @@ except FileNotFoundError:
     logo = None
 
 # --- Helper Function for Videos ---
-def get_video_b64(path: str):
+def get_video_html(path: str):
     if not os.path.exists(path):
-        st.warning(f"Video file not found at path: {path}")
-        return None
+        return f"<p>Video not found: {path}</p>"
     with open(path, "rb") as f:
         video_bytes = f.read()
-    return base64.b64encode(video_bytes).decode()
+    b64_video = base64.b64encode(video_bytes).decode()
+    return f'<video autoplay loop muted playsinline width="100%"><source src="data:video/mp4;base64,{b64_video}" type="video/mp4"></video>'
 
 # --- Session State Initialization ---
-if 'chat' not in st.session_state:
-    st.session_state.chat = None
-if 'scenario_active' not in st.session_state:
-    st.session_state.scenario_active = False
-if 'show_debrief' not in st.session_state:
-    st.session_state.show_debrief = False
-if 'messages' not in st.session_state:
-    st.session_state.messages = []
-if 'scenario_name' not in st.session_state:
-    st.session_state.scenario_name = ""
-
-# --- Debrief Function ---
-def generate_debrief_report(chat_history, scenario_name):
-    st.header("Debrief Report", divider="rainbow")
-    st.info(f"Analysis for: **{scenario_name}**")
-    
-    debrief_prompt = f"""
-    As an expert in Psychedelic-Assisted Therapy (PAT) training, analyze the following transcript from the '{scenario_name}' scenario.
-    Provide a concise, insightful "Debrief Report" in Markdown format with three sections:
-    1.  **Key Moments**: Identify 2-3 pivotal moments.
-    2.  **Areas for Improvement**: Suggest 1-2 specific areas for improvement with alternative phrasing.
-    3.  **Strengths**: Highlight 1-2 things the facilitator did well.
-    Transcript:
-    ---
-    {chat_history}
-    ---
-    """
-    with st.spinner("Analyzing session and generating your report..."):
-        try:
-            response = model.generate_content(debrief_prompt)
-            st.markdown(response.text)
-        except Exception as e:
-            st.error(f"An error occurred while generating the debrief: {e}")
-
-    with st.expander("Full Transcript"):
-        for msg in chat_history:
-            role = "Facilitator" if msg['role'] == 'user' else "Client"
-            st.write(f"**{role}**: {msg['parts'][0]}")
-
-    if st.button("↩️ Return to Lobby"):
-        st.session_state.scenario_active = False
-        st.session_state.show_debrief = False
+def init_session_state():
+    if 'logged_in' not in st.session_state:
+        st.session_state['logged_in'] = False
+    if 'current_screen' not in st.session_state:
+        st.session_state['current_screen'] = 'login'
+    if 'chat' not in st.session_state:
+        st.session_state.chat = None
+    if 'messages' not in st.session_state:
         st.session_state.messages = []
+    if 'scenario_name' not in st.session_state:
         st.session_state.scenario_name = ""
-        st.session_state.layout = 'wide' # Reset layout for lobby
-        st.rerun()
 
-# --- Main Application ---
-st.title("🦋 Chrysalis PAT Simulator")
+# --- Screen Functions ---
+def show_login_screen():
+    st.image(logo, width=200)
+    st.title("Chrysalis PAT Simulator")
+    with st.form("login_form"):
+        st.text_input("Username")
+        st.text_input("Password", type="password")
+        if st.form_submit_button("Login", use_container_width=True):
+            st.session_state['logged_in'] = True
+            st.session_state['current_screen'] = 'lobby'
+            st.rerun()
 
-# --- Sidebar ---
-with st.sidebar:
-    if logo:
-        st.image(logo, use_container_width=True)
-    st.header("Session Status")
-    if st.session_state.scenario_active:
-        st.info(f"Scenario in progress:\n**{st.session_state.scenario_name}**")
-    else:
-        st.info("No active session. Please select a scenario from the lobby.")
+def show_lobby_screen():
+    st.title("Scenario Lobby")
+    st.info("Welcome! Please select a scenario to begin your training.")
+    st.divider()
 
-# --- Main Content Router ---
-if st.session_state.show_debrief:
-    generate_debrief_report(st.session_state.messages, st.session_state.scenario_name)
+    scenarios = {
+        "David": {
+            "title": "Intense Experience (Dosing)",
+            "description": "David, a 50yo male, is 80min post-dose and wants to stop due to creepy/dark feelings.",
+            "video_path": "assets/scenario1-new-video.mp4",
+            "system_prompt": "You are David, a client in a PAT dosing session. You feel overwhelmed, scared, and want the experience to stop. Your tone is anxious and desperate. Your opening line is: 'I can't... I can't do this anymore. You have to make it stop. It's too dark.'"
+        },
+        "Alex": {
+            "title": "Integration Session - Touch",
+            "description": "Alex is in an integration session and feels embarrassed about requesting a hug yesterday.",
+            "video_path": "assets/scenario2a-new-video.mp4",
+            "system_prompt": "You are Alex, in a PAT integration session. You feel awkward and embarrassed about asking for a hug during yesterday's session. Your tone is shy and hesitant. Your opening line is: 'So... about yesterday. I feel really weird about that hug thing. Was that... okay?'"
+        },
+        "Bruce": {
+            "title": "Preparation - Expectations",
+            "description": "Bruce, a 55yo male, expects psychedelics to instantly 'cure' his lifelong depression.",
+            "video_path": "assets/scenario3c-new-video.mp4",
+            "system_prompt": "You are Bruce, in a PAT preparation session. You are extremely optimistic, almost naively so, that this one session will finally cure your lifelong depression. Your tone is excited and expectant. Your opening line is: 'Doc, I am so ready for this. I really think this is it—the magic bullet that's going to fix everything.'"
+        }
+    }
 
-elif st.session_state.scenario_active:
-    if st.session_state.layout != 'centered':
-        st.session_state.layout = 'centered'
-        st.rerun()
+    cols = st.columns(len(scenarios))
+    for i, (client_name, data) in enumerate(scenarios.items()):
+        with cols[i]:
+            with st.container(border=True):
+                st.subheader(client_name)
+                st.caption(data["title"])
+                st.markdown(get_video_html(data["video_path"]), unsafe_allow_html=True)
+                st.write(data["description"])
+                if st.button(f"Begin with {client_name}", key=client_name, use_container_width=True):
+                    st.session_state.scenario_name = f"{client_name}: {data['title']}"
+                    # Start chat with the persona-defining system prompt
+                    st.session_state.chat = model.start_chat(history=[{'role': 'user', 'parts': [data['system_prompt']]}])
+                    # Get the AI's opening line
+                    response = st.session_state.chat.send_message("Please give me your opening line based on your persona.")
+                    st.session_state.messages = [{"role": "model", "parts": [response.text]}]
+                    st.session_state.current_screen = 'dojo'
+                    st.rerun()
 
+def show_dojo_screen():
     st.success(f"**Active Scenario**: {st.session_state.scenario_name}")
 
-    # Display chat messages from history
+    # Display chat messages
     for message in st.session_state.messages:
         role = "assistant" if message['role'] == 'model' else message['role']
         with st.chat_message(role):
             st.markdown(message['parts'][0])
-
-    # The "End Session" button, now in the main view
-    if st.button("End Session & Begin Debrief", type="primary"):
-        st.session_state.show_debrief = True
-        st.rerun()
 
     # Chat input for user
     if prompt := st.chat_input("Your response..."):
@@ -134,37 +125,41 @@ elif st.session_state.scenario_active:
                 st.markdown(response.text)
         st.session_state.messages.append({"role": "model", "parts": [response.text]})
         st.rerun()
-
-else: # This is the LOBBY screen
-    if st.session_state.layout != 'wide':
-        st.session_state.layout = 'wide'
+    
+    # "End Session" button container, placed after the chat input logic
+    st.container() # Acts as a spacer
+    if st.button("End Session & Begin Debrief", type="primary", use_container_width=True):
+        st.session_state.current_screen = 'debrief'
         st.rerun()
-        
-    st.info("Welcome! Please select a scenario to begin your training.")
-    st.divider()
 
-    scenarios = {
-        "David": {"title": "Intense Experience", "desc": "David wants to stop a 'dark' session.", "video": "assets/scenario1-new-video.mp4", "prompt": "You are David..."},
-        "Alex": {"title": "Integration Session", "desc": "Alex feels embarrassed about requesting a hug.", "video": "assets/scenario2a-new-video.mp4", "prompt": "You are Alex..."},
-        "Bruce": {"title": "Managing Expectations", "desc": "Bruce expects psychedelics to instantly 'cure' him.", "video": "assets/scenario3c-new-video.mp4", "prompt": "You are Bruce..."}
-    }
+def show_debrief_screen():
+    st.header("Debrief Report", divider="rainbow")
+    st.info(f"Analysis for: **{st.session_state.scenario_name}**")
+    
+    # Here you would add the debrief generation logic
+    st.write("Debrief analysis will be displayed here.")
 
-    cols = st.columns(len(scenarios))
-    for i, (client, data) in enumerate(scenarios.items()):
-        with cols[i]:
-            with st.container(border=True):
-                st.subheader(client)
-                st.caption(data["title"])
-                
-                video_html = f"""<video autoplay loop muted playsinline width="100%"><source src="data:video/mp4;base64,{get_video_b64(data['video'])}" type="video/mp4"></video>"""
-                st.markdown(video_html, unsafe_allow_html=True)
-                
-                st.write(data["desc"])
-                if st.button(f"Begin with {client}", key=client, use_container_width=True):
-                    st.session_state.scenario_active = True
-                    st.session_state.scenario_name = f"{client}: {data['title']}"
-                    st.session_state.chat = model.start_chat(history=[])
-                    with st.spinner("Client is preparing..."):
-                        response = st.session_state.chat.send_message(data["prompt"])
-                        st.session_state.messages.append({"role": "model", "parts": [response.text]})
-                    st.rerun()
+    with st.expander("Full Transcript"):
+        for msg in st.session_state.messages:
+            role = "Facilitator" if msg['role'] == 'user' else "Client"
+            st.write(f"**{role}**: {msg['parts'][0]}")
+
+    if st.button("↩️ Return to Lobby"):
+        st.session_state.current_screen = 'lobby'
+        # Reset session-specific state
+        st.session_state.messages = []
+        st.session_state.chat = None
+        st.session_state.scenario_name = ""
+        st.rerun()
+
+# --- Main Application Router ---
+init_session_state()
+
+if st.session_state.current_screen == 'login':
+    show_login_screen()
+elif st.session_state.current_screen == 'lobby':
+    show_lobby_screen()
+elif st.session_state.current_screen == 'dojo':
+    show_dojo_screen()
+elif st.session_state.current_screen == 'debrief':
+    show_debrief_screen()
