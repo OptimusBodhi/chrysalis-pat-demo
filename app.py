@@ -121,15 +121,13 @@ def show_dojo_screen():
         with st.chat_message(role):
             st.markdown(message['parts'][0])
 
-    # --- FIX: Input and Button Area ---
-    # Use columns to place the button next to the input field
+    # --- Input and Button Area ---
     input_col, button_col = st.columns([4, 1])
 
     with input_col:
         prompt = st.chat_input("Your response...", key="chat_input")
 
     with button_col:
-        # A bit of vertical space to align the button
         st.markdown("<div style='height: 38px;'></div>", unsafe_allow_html=True) 
         if st.button("End Session", use_container_width=True, type="primary"):
             st.session_state.current_screen = 'debrief'
@@ -156,7 +154,24 @@ def show_debrief_screen():
     st.header("Debrief Report", divider="rainbow")
     st.info(f"Analysis for: **{st.session_state.scenario_name}**")
     
-    st.write("Debrief analysis will be displayed here.")
+    # --- FIX: Restored the Debrief Generation Logic ---
+    debrief_prompt = f"""
+    As an expert in Psychedelic-Assisted Therapy (PAT) training, analyze the following transcript from the '{st.session_state.scenario_name}' scenario.
+    Provide a concise, insightful "Debrief Report" in Markdown format with three sections:
+    1.  **Key Moments**: Identify 2-3 pivotal moments.
+    2.  **Areas for Improvement**: Suggest 1-2 specific areas for improvement with alternative phrasing.
+    3.  **Strengths**: Highlight 1-2 things the facilitator did well.
+    Transcript:
+    ---
+    {st.session_state.messages}
+    ---
+    """
+    with st.spinner("Analyzing session and generating your report..."):
+        try:
+            response = model.generate_content(debrief_prompt)
+            st.markdown(response.text)
+        except Exception as e:
+            st.error(f"An error occurred while generating the debrief: {e}")
 
     with st.expander("Full Transcript"):
         for msg in st.session_state.messages:
