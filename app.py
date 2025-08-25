@@ -13,7 +13,6 @@ st.set_page_config(
 )
 
 # --- API Configuration ---
-# The app is now configured to use Streamlit Secrets
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel('gemini-1.5-pro-latest')
@@ -35,13 +34,11 @@ def generate_debrief_report(chat_history):
     st.header("Debrief Report", divider="rainbow")
     st.info("This report analyzes your interaction with the simulated client.", icon="📝")
 
-    # Display the full transcript
     with st.expander("**Full Session Transcript**", expanded=False):
         for message in chat_history:
             role_icon = "🧑‍💻" if message['role'] == 'user' else "🤖"
             st.markdown(f"**{role_icon} {message['role'].replace('model', 'Client').replace('user', 'Facilitator').title()}**: {message['parts'][0]}")
 
-    # Prepare the prompt for Gemini
     debrief_prompt = f"""
     As an expert in Psychedelic-Assisted Therapy (PAT) training, analyze the following facilitator-client conversation transcript.
     Provide a concise, insightful "Debrief Report" in Markdown format.
@@ -64,7 +61,6 @@ def generate_debrief_report(chat_history):
             st.error(f"An error occurred while generating the debrief: {e}")
 
     if st.button("↩️ Start a New Session"):
-        # Clear all session state to reset the app
         for key in st.session_state.keys():
             del st.session_state[key]
         st.rerun()
@@ -72,7 +68,7 @@ def generate_debrief_report(chat_history):
 
 # --- Main Application ---
 
-# Initialize session state variables if they don't exist
+# Initialize session state variables
 if 'chat' not in st.session_state:
     st.session_state.chat = None
 if 'scenario_active' not in st.session_state:
@@ -90,7 +86,6 @@ with st.sidebar:
     st.title("Settings")
     st.info("Select a client scenario to begin the simulation.")
 
-    # Scenario selection
     scenario = st.selectbox(
         "Choose a Client Scenario:",
         ("Select a scenario...", "Scenario A: Pre-session Anxiety", "Scenario B: Post-session Integration"),
@@ -101,33 +96,22 @@ with st.sidebar:
         if st.button(f"Begin {scenario.split(':')[0]}"):
             st.session_state.scenario_active = True
             st.session_state.chat = model.start_chat(history=[])
-            # Initial message from the AI client
             initial_message = f"You are a client in a psychedelic-assisted therapy setting. You are currently in '{scenario}'. Start the conversation naturally based on this context."
             response = st.session_state.chat.send_message(initial_message)
             st.session_state.messages.append({"role": "model", "parts": [response.text]})
             st.rerun()
 
-    # --- NEW: Conditional Debrief Button ---
-    # This button only appears after a scenario has started.
-    if st.session_state.get('scenario_active'):
-        st.markdown("---")
-        st.warning("Session in progress.")
-        if st.button("End Session & Begin Debrief", type="primary"):
-            st.session_state['show_debrief'] = True
-            st.session_state['scenario_active'] = False # End the active scenario
-            st.rerun()
+    # --- BUTTON REMOVED FROM SIDEBAR ---
+    # The "End Session" button is no longer here.
 
 
 # --- Main Content Area ---
 
 st.header("🦋 Chrysalis PAT Simulator")
 
-# --- NEW: Main Logic to Switch Views ---
-# If 'show_debrief' is True, display the report. Otherwise, show the chat or welcome screen.
 if st.session_state.get('show_debrief'):
     generate_debrief_report(st.session_state.messages)
 else:
-    # If a scenario is active, show the chat interface
     if st.session_state.scenario_active:
         st.success(f"**Active Scenario**: {scenario}")
 
@@ -136,6 +120,13 @@ else:
             role = "user" if message['role'] == 'user' else "assistant"
             with st.chat_message(role):
                 st.markdown(message['parts'][0])
+
+        # --- NEW BUTTON LOCATION ---
+        # The button is now in the main chat view, above the input box.
+        if st.button("End Session & Begin Debrief", type="primary"):
+            st.session_state['show_debrief'] = True
+            st.session_state['scenario_active'] = False
+            st.rerun()
 
         # Chat input
         if prompt := st.chat_input("Your response..."):
@@ -150,6 +141,5 @@ else:
             st.session_state.messages.append({"role": "model", "parts": [response.text]})
             st.rerun()
 
-    # If no scenario is active, show the welcome message
     else:
         st.info("Welcome to the Chrysalis PAT Simulator. Please select a scenario from the sidebar to begin.")
