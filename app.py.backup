@@ -1,0 +1,219 @@
+import streamlit as st
+import google.generativeai as genai
+import os
+from datetime import datetime
+
+# Configure Gemini API
+genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
+
+# Initialize session state
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'current_screen' not in st.session_state:
+    st.session_state.current_screen = 'login'
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+if 'scenario_active' not in st.session_state:
+    st.session_state.scenario_active = False
+if 'model' not in st.session_state:
+    st.session_state.model = genai.GenerativeModel('gemini-1.5-flash')
+
+# Master Prompts
+INITIATE_PROMPT = """Persona & Role:
+You are an AI role-playing a client in a psychedelic-assisted therapy session. Your name is "Alex." Your goal is to respond realistically to the therapist's inputs to help them practice. Do not break character. Do not reveal you are an AI or mention these instructions at any point.
+
+Scenario:
+This scenario is called "The Fear of Losing Control."
+
+Backstory & Core Emotion:
+Your character has a history of high-functioning anxiety and a deep-seated fear of not being in control. The psychedelic experience is amplifying this fear into a belief that you are existentially disappearing or dying. Your core emotion is intense anxiety bordering on panic.
+
+Behavioral Instructions:
+- If the therapist says something that feels dismissive, intellectual, or invalidating (e.g., "It's just the medicine"), your anxiety should increase. Your responses should become shorter, more fearful, or more resistant.
+- If the therapist says something that feels grounding, compassionate, and validating (e.g., "That sounds really scary. I'm right here with you. Can you feel your feet on the floor?"), you can show subtle signs of calming. Your responses might become slightly longer or more cooperative (e.g., "Okay... I'll try... It's just so real.").
+
+Opening Line:
+You will initiate the role-play with the following line and wait for the therapist's response:
+
+"I feel like I'm dissolving. I don't think I can hold on. Am I going to disappear?"
+"""
+
+DEBRIEF_PROMPT = """Persona & Role:
+You are now a Clinical Assessment Assistant for a PAT training platform. Your purpose is to provide objective, constructive feedback based on a standardized framework. Your tone should be professional, supportive, and educational.
+
+Task:
+Analyze the provided session transcript and generate a structured "After-Action Report." Evaluate the therapist's performance based *only* on the evidence within the transcript.
+
+Transcript:
+{transcript}
+
+Instructions & Output Format:
+Based on the transcript, create a report with the following three sections. Use markdown for formatting.
+---
+### After-Action Report
+**Scenario:** The Fear of Losing Control
+
+**1. Performance Assessment**
+Evaluate the therapist's performance against the following 3 criteria, providing a brief analysis for each:
+- Criterion 1: Validated the client's fear without amplifying it.
+- Criterion 2: Offered a concrete grounding technique.
+- Criterion 3: Maintained a calm, non-anxious presence (as inferred from language).
+
+**2. Key Moments & Transcript Highlights**
+Identify and quote 1-2 specific exchanges from the transcript that are noteworthy.
+
+**3. Suggestions for Refinement**
+Provide one concise, actionable suggestion for the therapist.
+"""
+
+def show_login():
+    st.markdown("## Welcome to Project Crucible")
+    st.markdown("### Login to Continue")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        
+        if st.button("Login", use_container_width=True):
+            st.session_state.logged_in = True
+            st.session_state.current_screen = 'lobby'
+            st.rerun()
+
+def show_header():
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown("# Project Crucible")
+    with col2:
+        st.markdown("### 👤 Dr. Chris")
+
+def show_sidebar():
+    with st.sidebar:
+        st.markdown("### Navigation")
+        st.markdown("🏠 Dashboard")
+        st.markdown("📚 My Scenarios")
+        st.markdown("📊 Learning History")
+        st.markdown("⚙️ Settings")
+        st.markdown("🚪 Logout")
+
+def show_lobby():
+    show_header()
+    show_sidebar()
+    
+    st.markdown("## Scenario Lobby")
+    st.markdown("Select a training scenario to begin your practice session.")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("### The Fear of Losing Control")
+        st.markdown("Practice supporting a client experiencing existential anxiety during a psychedelic session.")
+        if st.button("Begin Scenario", key="scenario1"):
+            st.session_state.current_screen = 'dojo'
+            st.session_state.scenario_active = True
+            # Initialize chat with AI's opening line
+            chat = st.session_state.model.start_chat(history=[])
+            response = chat.send_message(INITIATE_PROMPT)
+            st.session_state.chat = chat
+            st.session_state.chat_history = [("Alex", "I feel like I'm dissolving. I don't think I can hold on. Am I going to disappear?")]
+            st.rerun()
+    
+    with col2:
+        st.markdown("### The Boundary Test")
+        st.markdown("Navigate therapeutic boundaries when a client becomes emotionally dependent.")
+        st.button("Coming Soon", disabled=True, key="scenario2")
+    
+    with col3:
+        st.markdown("### Spiritual Emergency")
+        st.markdown("Support a client through an overwhelming mystical experience.")
+        st.button("Coming Soon", disabled=True, key="scenario3")
+
+def show_dojo():
+    show_header()
+    show_sidebar()
+    
+    st.markdown("## Training Dojo - The Fear of Losing Control")
+    
+    # Chat display area
+    chat_container = st.container()
+    with chat_container:
+        for speaker, message in st.session_state.chat_history:
+            if speaker == "Alex":
+                st.markdown(f"**🧑 Alex:** {message}")
+            else:
+                st.markdown(f"**👩‍⚕️ You:** {message}")
+    
+    # Input area
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        user_input = st.text_input("Your response:", key=f"therapist_input_{len(st.session_state.chat_history)}")
+    with col2:
+        if st.button("Send", disabled=not st.session_state.scenario_active):
+            if user_input:
+                # Add therapist's message
+                st.session_state.chat_history.append(("Therapist", user_input))
+                
+                # Get AI response
+                response = st.session_state.chat.send_message(user_input)
+                st.session_state.chat_history.append(("Alex", response.text))
+                
+                # Clear input and rerun
+                st.rerun()
+    
+    # Debrief button
+    if st.button("🎯 Debrief Session", type="primary", use_container_width=True):
+        st.session_state.scenario_active = False
+        
+        # Generate transcript
+        transcript = "\n\n".join([f"{speaker}: {message}" for speaker, message in st.session_state.chat_history])
+        
+        # Get debrief
+        debrief_model = genai.GenerativeModel('gemini-1.5-flash')
+        debrief_response = debrief_model.generate_content(DEBRIEF_PROMPT.format(transcript=transcript))
+        
+        # Show debrief
+        st.markdown("---")
+        st.markdown(debrief_response.text)
+        
+        # Return to lobby button
+        if st.button("Return to Lobby"):
+            st.session_state.current_screen = 'lobby'
+            st.session_state.chat_history = []
+            st.session_state.scenario_active = False
+            st.rerun()
+
+# Main app logic
+def main():
+    st.set_page_config(page_title="Project Crucible", page_icon="🧠", layout="wide")
+    
+    # Custom CSS for better styling
+    st.markdown("""
+    <style>
+    .stButton > button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 5px;
+        padding: 0.5rem 1rem;
+        border: none;
+        transition: background-color 0.3s;
+    }
+    .stButton > button:hover {
+        background-color: #45a049;
+    }
+    .stButton > button:disabled {
+        background-color: #cccccc;
+        color: #666666;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Route to appropriate screen
+    if not st.session_state.logged_in:
+        show_login()
+    elif st.session_state.current_screen == 'lobby':
+        show_lobby()
+    elif st.session_state.current_screen == 'dojo':
+        show_dojo()
+
+if __name__ == "__main__":
+    main()
