@@ -101,9 +101,6 @@ with st.sidebar:
             st.session_state.messages.append({"role": "model", "parts": [response.text]})
             st.rerun()
 
-    # --- BUTTON REMOVED FROM SIDEBAR ---
-    # The "End Session" button is no longer here.
-
 
 # --- Main Content Area ---
 
@@ -115,20 +112,23 @@ else:
     if st.session_state.scenario_active:
         st.success(f"**Active Scenario**: {scenario}")
 
-        # Display chat messages
-        for message in st.session_state.messages:
-            role = "user" if message['role'] == 'user' else "assistant"
-            with st.chat_message(role):
-                st.markdown(message['parts'][0])
+        # --- NEW: Chat History Container ---
+        # This container will hold the scrolling chat history.
+        chat_container = st.container()
+        with chat_container:
+            for message in st.session_state.messages:
+                role = "user" if message['role'] == 'user' else "assistant"
+                with st.chat_message(role):
+                    st.markdown(message['parts'][0])
 
-        # --- NEW BUTTON LOCATION ---
-        # The button is now in the main chat view, above the input box.
+        # --- NEW: Button and Input Area ---
+        # This section is outside the container, so it remains fixed at the bottom.
+        st.markdown("---") # Visual separator
         if st.button("End Session & Begin Debrief", type="primary"):
             st.session_state['show_debrief'] = True
             st.session_state['scenario_active'] = False
             st.rerun()
 
-        # Chat input
         if prompt := st.chat_input("Your response..."):
             st.session_state.messages.append({"role": "user", "parts": [prompt]})
             with st.chat_message("user"):
@@ -139,6 +139,7 @@ else:
                     response = st.session_state.chat.send_message(prompt)
                     st.markdown(response.text)
             st.session_state.messages.append({"role": "model", "parts": [response.text]})
+            # We need to rerun to show the new message inside the container
             st.rerun()
 
     else:
