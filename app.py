@@ -23,7 +23,7 @@ except Exception as e:
 
 # --- Asset Loading ---
 try:
-    # CORRECTED: Using the hyphenated filename 'chrysalis-logo.png'
+    # Using the hyphenated filename 'chrysalis-logo.png'
     logo = Image.open("assets/chrysalis-logo.png")
 except FileNotFoundError:
     st.warning("Warning: `assets/chrysalis-logo.png` not found. The logo will not be displayed.")
