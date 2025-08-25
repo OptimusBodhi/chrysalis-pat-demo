@@ -23,9 +23,10 @@ except Exception as e:
 
 # --- Asset Loading ---
 try:
-    logo = Image.open("assets/chrysalis_logo.png")
+    # CORRECTED: Using the hyphenated filename 'chrysalis-logo.png'
+    logo = Image.open("assets/chrysalis-logo.png")
 except FileNotFoundError:
-    st.warning("Warning: `assets/chrysalis_logo.png` not found. The logo will not be displayed.")
+    st.warning("Warning: `assets/chrysalis-logo.png` not found. The logo will not be displayed.")
     logo = None
 
 # --- Debrief Generation Function ---
@@ -113,7 +114,6 @@ else:
         st.success(f"**Active Scenario**: {scenario}")
 
         # --- NEW: Chat History Container ---
-        # This container will hold the scrolling chat history.
         chat_container = st.container()
         with chat_container:
             for message in st.session_state.messages:
@@ -122,7 +122,6 @@ else:
                     st.markdown(message['parts'][0])
 
         # --- NEW: Button and Input Area ---
-        # This section is outside the container, so it remains fixed at the bottom.
         st.markdown("---") # Visual separator
         if st.button("End Session & Begin Debrief", type="primary"):
             st.session_state['show_debrief'] = True
@@ -139,7 +138,6 @@ else:
                     response = st.session_state.chat.send_message(prompt)
                     st.markdown(response.text)
             st.session_state.messages.append({"role": "model", "parts": [response.text]})
-            # We need to rerun to show the new message inside the container
             st.rerun()
 
     else:
