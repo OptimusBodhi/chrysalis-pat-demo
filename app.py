@@ -113,7 +113,7 @@ else:
     if st.session_state.scenario_active:
         st.success(f"**Active Scenario**: {scenario}")
 
-        # --- NEW: Chat History Container ---
+        # --- Chat History Container ---
         chat_container = st.container()
         with chat_container:
             for message in st.session_state.messages:
@@ -121,7 +121,7 @@ else:
                 with st.chat_message(role):
                     st.markdown(message['parts'][0])
 
-        # --- NEW: Button and Input Area ---
+        # --- Button and Input Area ---
         st.markdown("---") # Visual separator
         if st.button("End Session & Begin Debrief", type="primary"):
             st.session_state['show_debrief'] = True
